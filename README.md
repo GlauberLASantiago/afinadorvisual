@@ -2,7 +2,6 @@
 
 Um afinador eletrônico baseado na web, projetado para fornecer feedback visual e em tempo real sobre a afinação de um instrumento musical. Ideal para músicos, especialmente de sopro, que desejam analisar a estabilidade e a entonação de suas notas ao longo do tempo.
 
-(Sugestão: substitua este link por uma captura de tela ou GIF do seu afinador em ação!)
 
 🎯 Sobre o Projeto
 
