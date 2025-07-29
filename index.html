@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Afinador Eletrônico Visual</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Nova Paleta de Cores:
+           Azul Baixo: #1E40FB
+           Vermelho Alto: #FC0019
+           Amarelo Destaque: #FECF2F
+           Verde Afin./Botão: #1FD025
+           Cinza Fundo: #434344
+           Branco Texto/Linha: #F9F9F9
+        */
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            background-color: #333333; /* Fundo geral mais escuro */
+        }
+        .note-text {
+            text-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
+        }
+        .card-bg {
+             background-color: #434344;
+        }
+        /* Custom slider styles */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+            cursor: pointer;
+            width: 9rem; /* Adjusted for labels */
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            background: #555555;
+            height: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            margin-top: -4px;
+            background-color: #FECF2F;
+            height: 1.25rem;
+            width: 1.25rem;
+            border-radius: 50%;
+            border: 2px solid #F9F9F9;
+        }
+        /* Transposition button styles */
+        .instrument-btn {
+            padding: 0.5rem 1.25rem;
+            border-radius: 9999px; /* pill shape */
+            border: 2px solid #555555;
+            background-color: transparent;
+            color: #F9F9F9;
+            font-weight: 500;
+            transition: all 0.2s ease-in-out;
+        }
+        .instrument-btn.active {
+            background-color: #FECF2F;
+            color: #434344;
+            font-weight: 700;
+            border-color: #FECF2F;
+        }
+    </style>
+</head>
+<body class="text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl card-bg rounded-2xl shadow-2xl p-6 text-center border border-gray-700">
+        <h1 class="text-3xl font-bold mb-2" style="color: #FECF2F;">Afinador Visual</h1>
+        <p class="text-white/70 mb-2">As faixas de cor indicam se a afinação está alta (vermelho) ou baixa (azul).</p>
+        
+        <!-- Canvas for visualization -->
+        <div class="relative w-full h-64 md:h-80 bg-black rounded-lg mb-4 overflow-hidden border-2 border-gray-600">
+            <canvas id="tunerCanvas"></canvas>
+            <!-- Linha Central mais larga -->
+            <div class="absolute top-1/2 left-0 w-full h-0.5 bg-white/40 transform -translate-y-1/2"></div>
+            <!-- UI Elements moved to the right -->
+            <div id="noteDisplay" class="absolute top-4 right-4 text-right text-3xl font-bold text-white note-text transition-opacity duration-300 opacity-0">
+                <span id="noteName">--</span>
+                <span id="noteOctave" class="text-xl text-gray-300"></span>
+            </div>
+            <div id="centsDisplay" class="absolute bottom-4 right-4 text-right text-xl font-medium text-white note-text transition-opacity duration-300 opacity-0">--</div>
+        </div>
+
+        <!-- Controls with labels -->
+        <div class="flex flex-col md:flex-row justify-center items-center gap-x-8 gap-y-6 mb-6">
+            <!-- Sensitivity Control -->
+            <div class="flex flex-col items-center">
+                <label for="sensitivity" class="mb-2 text-sm text-white/80">Sensibilidade</label>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-white/60" title="Visualização mais aproximada (zoom)">Mais Zoom</span>
+                    <input type="range" id="sensitivity" min="50" max="300" value="150">
+                    <span class="text-xs text-white/60" title="Visualização mais afastada (zoom)">Menos Zoom</span>
+                </div>
+            </div>
+            <!-- Smoothing Control -->
+            <div class="flex flex-col items-center">
+                <label for="smoothing" class="mb-2 text-sm text-white/80">Suavização da Linha</label>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-white/60" title="Linha mais reativa">Rápida</span>
+                    <input type="range" id="smoothing" min="1" max="40" value="5">
+                    <span class="text-xs text-white/60" title="Linha mais estável e filtrada">Estável</span>
+                </div>
+            </div>
+             <!-- Instrument Control -->
+            <div class="flex flex-col items-center">
+                <label class="mb-2 text-sm text-white/80">Instrumento</label>
+                <div id="instrument-selector" class="flex items-center gap-2">
+                    <button data-transposition="0" class="instrument-btn active">C</button>
+                    <button data-transposition="2" class="instrument-btn">B♭</button>
+                    <button data-transposition="-9" class="instrument-btn">E♭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start/Stop Button -->
+        <button id="startButton" class="text-white font-bold py-3 px-8 rounded-full text-lg transition-all duration-300 shadow-lg focus:outline-none focus:ring-4" 
+                style="background-color: #1FD025; --tw-ring-color: #333333;">
+            Iniciar Afinador
+        </button>
+
+        <!-- Status & Credits -->
+        <div id="status" class="mt-4 text-white/60 h-6">Permita o acesso ao microfone</div>
+        <div class="mt-4 pt-4 border-t border-white/20 text-xs text-white/50">
+             <p class="mb-2">Este afinador visual foi projetado para auxiliar instrumentistas, especialmente os de sopro, a visualizar a estabilidade e a afinação de notas durante a execução musical, facilitando a identificação de notas que estão consistentemente altas ou baixas.</p>
+             <p>Créditos para Prof. Glauber Santiago - UFSCar 2025.</p>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const startButton = document.getElementById('startButton');
+        const statusEl = document.getElementById('status');
+        const canvas = document.getElementById('tunerCanvas');
+        const ctx = canvas.getContext('2d');
+        const noteDisplay = document.getElementById('noteDisplay');
+        const noteNameEl = document.getElementById('noteName');
+        const noteOctaveEl = document.getElementById('noteOctave');
+        const centsDisplayEl = document.getElementById('centsDisplay');
+        const sensitivitySlider = document.getElementById('sensitivity');
+        const smoothingSlider = document.getElementById('smoothing');
+        const instrumentButtons = document.querySelectorAll('.instrument-btn');
+
+        // --- New Color Palette ---
+        const COLORS = {
+            LINE: '#F9F9F9',
+            SHARP_GRADIENT: '#FC0019',
+            FLAT_GRADIENT: '#1E40FB',
+            BUTTON_STOP: '#FC0019',
+            BUTTON_START: '#1FD025',
+            IN_TUNE_TEXT: '#1FD025'
+        };
+
+        // --- State Variables ---
+        let audioContext, analyser, mediaStreamSource, buffer;
+        let running = false;
+        let pitchHistory = [];
+        let centsRange = 150; 
+        let centsAverageWindow = 5;
+        let currentTransposition = 0; // 0 for C, 2 for Bb, -9 for Eb
+        let lastNoteNum = -1;
+        let centsAverageBuffer = [];
+        let noteStableTime = 0;
+        const PLOT_DELAY = 200; // 200ms delay for note to stabilize
+        const noteStrings = ["C", "C♯/D♭", "D", "D♯/E♭", "E", "F", "F♯/G♭", "G", "G♯/A♭", "A", "A♯/B♭", "B"];
+        
+        // --- Event Listeners ---
+        sensitivitySlider.addEventListener('input', (e) => {
+            centsRange = parseInt(e.target.value, 10);
+        });
+        smoothingSlider.addEventListener('input', (e) => {
+            centsAverageWindow = parseInt(e.target.value, 10);
+        });
+        instrumentButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                instrumentButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                currentTransposition = parseInt(button.dataset.transposition, 10);
+            });
+        });
+
+
+        window.addEventListener('resize', setupCanvas);
+        startButton.addEventListener('click', () => { running ? stop() : start(); });
+
+        // --- Canvas Setup ---
+        function setupCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            canvas.style.width = `${rect.width}px`;
+            canvas.style.height = `${rect.height}px`;
+            pitchHistory = new Array(Math.floor(rect.width)).fill(null);
+        }
+
+        // --- Pitch Detection & Calculation ---
+        function detectPitch() {
+            const bufferLength = analyser.fftSize;
+            analyser.getFloatTimeDomainData(buffer);
+            let rms = 0;
+            for (let i = 0; i < bufferLength; i++) rms += buffer[i] * buffer[i];
+            rms = Math.sqrt(rms / bufferLength);
+            if (rms < 0.015) return null; // Silence threshold
+            const correlations = new Array(bufferLength).fill(0);
+            for (let lag = 0; lag < bufferLength; lag++) {
+                for (let i = 0; i < bufferLength - lag; i++) correlations[lag] += buffer[i] * buffer[i + lag];
+            }
+            let d = 0;
+            while (correlations[d] > correlations[d + 1]) d++;
+            let maxval = -1, maxpos = -1;
+            for (let i = d; i < bufferLength; i++) {
+                if (correlations[i] > maxval) { maxval = correlations[i]; maxpos = i; }
+            }
+            if (maxpos > 0 && maxpos < bufferLength - 1) {
+                const y1 = correlations[maxpos - 1], y2 = correlations[maxpos], y3 = correlations[maxpos + 1];
+                const a = (y1 + y3 - 2 * y2) / 2, b = (y3 - y1) / 2;
+                if (a !== 0) maxpos -= b / (2 * a);
+            }
+            return maxpos === -1 ? null : audioContext.sampleRate / maxpos;
+        }
+        function frequencyToNote(f) { return Math.round(12 * (Math.log(f / 440) / Math.log(2))) + 69; }
+        
+        function getNoteDetails(n) { 
+            const noteNameIndex = (n % 12 + 12) % 12; // Handles negative numbers from transposition
+            return { 
+                name: noteStrings[noteNameIndex], 
+                octave: Math.floor(n / 12) - 1 
+            }; 
+        }
+
+        function getCentsDifference(f, n) { return 1200 * Math.log2(f / (440 * Math.pow(2, (n - 69) / 12))); }
+        
+        // --- Main Update and Drawing Loop ---
+        function update() {
+            if (!running) return;
+            const pitch = detectPitch();
+            let currentPoint = null;
+
+            if (pitch) {
+                const noteNum = frequencyToNote(pitch); // This is the concert pitch note
+                
+                if (noteNum !== lastNoteNum) {
+                    noteStableTime = performance.now();
+                    centsAverageBuffer = [];
+                    lastNoteNum = noteNum;
+                }
+                
+                if (performance.now() - noteStableTime > PLOT_DELAY) {
+                    const cents = getCentsDifference(pitch, noteNum); // Cents are always vs concert pitch
+                    centsAverageBuffer.push(cents);
+                    if (centsAverageBuffer.length > centsAverageWindow) {
+                        centsAverageBuffer.shift();
+                    }
+                    const averagedCents = centsAverageBuffer.reduce((a, b) => a + b, 0) / centsAverageBuffer.length;
+                    
+                    const displayedNoteNum = noteNum + currentTransposition; // Calculate transposed note for display
+                    const noteDetails = getNoteDetails(displayedNoteNum);
+
+                    const canvasHeight = canvas.parentElement.clientHeight;
+                    const normalizedDetune = Math.max(-1, Math.min(1, averagedCents / centsRange));
+                    const yPosition = (canvasHeight / 2) - (normalizedDetune * (canvasHeight / 2));
+                    currentPoint = { y: yPosition };
+                    updateUI(noteDetails, averagedCents);
+                } else {
+                    currentPoint = null;
+                    const displayedNoteNum = noteNum + currentTransposition;
+                    const noteDetails = getNoteDetails(displayedNoteNum);
+                    updateUIStabilizing(noteDetails);
+                }
+            
+            } else {
+                lastNoteNum = -1; 
+                noteStableTime = 0;
+                noteDisplay.classList.add('opacity-0');
+                centsDisplayEl.classList.add('opacity-0');
+            }
+            
+            pitchHistory.push(currentPoint);
+            if (pitchHistory.length > canvas.parentElement.clientWidth) {
+                pitchHistory.shift();
+            }
+            
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function updateUI(noteDetails, cents) {
+            noteNameEl.textContent = noteDetails.name;
+            noteOctaveEl.textContent = noteDetails.octave;
+            
+            if (Math.abs(cents) < 5) {
+                centsDisplayEl.textContent = 'Afinado';
+                centsDisplayEl.style.color = COLORS.IN_TUNE_TEXT;
+            } else {
+                centsDisplayEl.textContent = `${cents > 0 ? '+' : ''}${cents.toFixed(1)} cents`;
+                centsDisplayEl.style.color = COLORS.LINE;
+            }
+            noteDisplay.classList.remove('opacity-0');
+            centsDisplayEl.classList.remove('opacity-0');
+        }
+
+        function updateUIStabilizing(noteDetails) {
+            noteNameEl.textContent = noteDetails.name;
+            noteOctaveEl.textContent = noteDetails.octave;
+            centsDisplayEl.textContent = 'Estabilizando...';
+            centsDisplayEl.style.color = COLORS.LINE;
+            noteDisplay.classList.remove('opacity-0');
+            centsDisplayEl.classList.remove('opacity-0');
+        }
+
+        function draw() {
+            const canvasWidth = canvas.parentElement.clientWidth;
+            const canvasHeight = canvas.parentElement.clientHeight;
+            const centerY = canvasHeight / 2;
+            
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            const bands = [
+                { threshold: 0.20, sharpOpacity: '26', flatOpacity: '33' }, 
+                { threshold: 0.50, sharpOpacity: '4D', flatOpacity: '66' },
+                { threshold: 0.80, sharpOpacity: '80', flatOpacity: '99' },
+                { threshold: 1.00, sharpOpacity: 'B3', flatOpacity: 'CC' }
+            ];
+
+            let lastThreshold = 0;
+            for (const band of bands) {
+                const currentThresholdHeight = centerY * band.threshold;
+                const lastThresholdHeight = centerY * lastThreshold;
+                const bandHeight = currentThresholdHeight - lastThresholdHeight;
+
+                ctx.fillStyle = `${COLORS.SHARP_GRADIENT}${band.sharpOpacity}`;
+                ctx.fillRect(0, centerY - currentThresholdHeight, canvasWidth, bandHeight);
+
+                ctx.fillStyle = `${COLORS.FLAT_GRADIENT}${band.flatOpacity}`;
+                ctx.fillRect(0, centerY + lastThresholdHeight, canvasWidth, bandHeight);
+                
+                lastThreshold = band.threshold;
+            }
+            
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = COLORS.LINE;
+            ctx.shadowColor = COLORS.LINE + '80';
+            ctx.shadowBlur = 8;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            
+            ctx.beginPath();
+            let isDrawingLine = false;
+
+            for (let i = 0; i < pitchHistory.length; i++) {
+                const point = pitchHistory[i];
+                if (point) {
+                    if (!isDrawingLine) {
+                        ctx.moveTo(i, point.y);
+                        isDrawingLine = true;
+                    } else {
+                        ctx.lineTo(i, point.y);
+                    }
+                } else {
+                    if (isDrawingLine) {
+                         ctx.stroke();
+                         ctx.beginPath();
+                         isDrawingLine = false;
+                    }
+                }
+            }
+            if(isDrawingLine) ctx.stroke();
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+        }
+
+        // --- Start/Stop Logic ---
+        async function start() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 4096;
+                buffer = new Float32Array(analyser.fftSize);
+                mediaStreamSource = audioContext.createMediaStreamSource(stream);
+                mediaStreamSource.connect(analyser);
+
+                running = true;
+                startButton.textContent = 'Parar Afinador';
+                startButton.style.backgroundColor = COLORS.BUTTON_STOP;
+                statusEl.textContent = 'Ouvindo...';
+                update();
+            } catch (err) {
+                statusEl.textContent = 'Erro: Não foi possível acessar o microfone.';
+            }
+        }
+        
+        function stop() {
+            if (mediaStreamSource) {
+                mediaStreamSource.mediaStream.getTracks().forEach(track => track.stop());
+                mediaStreamSource.disconnect();
+            }
+            if (audioContext && audioContext.state !== 'closed') audioContext.close();
+            running = false;
+            startButton.textContent = 'Iniciar Afinador';
+            startButton.style.backgroundColor = COLORS.BUTTON_START;
+            statusEl.textContent = 'Afinador parado.';
+            noteDisplay.classList.add('opacity-0');
+            centsDisplayEl.classList.add('opacity-0');
+        }
+
+        // --- Initial setup ---
+        setupCanvas();
+
+    </script>
+</body>
+</html>
